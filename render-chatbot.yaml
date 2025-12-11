@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: rag-chatbot-api
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python chatbot.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.1
+      - key: PORT
+        value: 10000
+      # These will be set in Render dashboard:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: COLLECTION_NAME
+        value: humanoid_ai_book_openai
+      - key: EMBED_MODEL
+        value: text-embedding-3-small

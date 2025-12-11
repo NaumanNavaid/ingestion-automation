@@ -1,0 +1,144 @@
+name: RAG Ingestion Automation
+
+on:
+  # Run on schedule (every 6 hours)
+  schedule:
+    - cron: '0 */6 * * *'
+
+  # Run on push to main
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'ingest_with_dedup.py'
+      - '.env'
+      - 'ingest.py'
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      force_reingest:
+        description: 'Force re-ingest all URLs'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install python-dotenv requests trafilatura qdrant-client[fastembed] openai schedule
+
+    - name: Set up environment
+      run: |
+        # Create .env file from secrets
+        cat > .env << EOF
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        QDRANT_URL=${{ secrets.QDRANT_URL }}
+        QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}
+        COLLECTION_NAME=${{ secrets.COLLECTION_NAME }}
+        EMBED_MODEL=text-embedding-3-small
+        CHUNK_SIZE=1000
+        BATCH_SIZE=10
+        EOF
+
+    - name: Run ingestion (with deduplication)
+      if: github.event.inputs.force_reingest != 'true'
+      run: |
+        python ingest_with_dedup.py
+
+    - name: Run forced re-ingestion
+      if: github.event.inputs.force_reingest == 'true'
+      env:
+        FORCE_REINGEST: true
+      run: |
+        python ingest_with_dedup.py
+
+    - name: Generate report
+      if: always()
+      run: |
+        python -c "
+        import os
+        from dotenv import load_dotenv
+        from qdrant_client import QdrantClient
+
+        load_dotenv()
+
+        try:
+            qdrant = QdrantClient(
+                url=os.getenv('QDRANT_URL'),
+                api_key=os.getenv('QDRANT_API_KEY')
+            )
+
+            collection_name = os.getenv('COLLECTION_NAME')
+            info = qdrant.get_collection(collection_name)
+
+            report = f'''
+            📊 RAG Ingestion Report
+            ===================
+            Timestamp: $(date)
+            Collection: {collection_name}
+            Total Points: {info.points_count}
+            Vector Size: {info.config.params.vectors.size}
+            Distance: {info.config.params.vectors.distance}
+
+            Workflow: ${{ github.workflow }}
+            Event: ${{ github.event_name }}
+            Actor: ${{ github.actor }}
+            '''
+
+            print(report)
+
+            # Save to file
+            with open('ingestion_report.txt', 'w') as f:
+                f.write(report)
+
+        except Exception as e:
+            print(f'Error generating report: {e}')
+        "
+
+    - name: Upload report as artifact
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: ingestion-report-${{ github.run_number }}
+        path: ingestion_report.txt
+        retention-days: 30
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ Ingestion failed!"
+        # Add your notification logic here (email, Slack, etc.)
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: ingest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deployment would happen here"
+        # Add deployment steps if needed

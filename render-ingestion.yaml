@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: rag-auto-ingestion
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python auto_ingestion.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.1
+      - key: PORT
+        value: 10001
+      # These will be set in Render dashboard:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: COLLECTION_NAME
+        value: humanoid_ai_book_openai
+      - key: URL_TRACKING_COLLECTION
+        value: humanoid_ai_book_openai_urls
+      - key: EMBED_MODEL
+        value: text-embedding-3-small
+      - key: REALTIME_CHECK_INTERVAL
+        value: 60

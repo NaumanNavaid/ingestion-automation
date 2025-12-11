@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "SlashCommand(/sp.phr --title \"RAG deployment analysis\" --stage general --json)",
+      "Bash(cp:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(tasklist:*)",
+      "Bash(docker run:*)",
+      "Bash(findstr:*)",
+      "Bash(copy:*)",
+      "Bash(timeout:*)",
+      "Bash(chcp:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
